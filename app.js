@@ -46,4 +46,5 @@ function calificacion(nombreProfesor) {
 }
 
 let inicio = prompt("Por favor, ingrese su nombre para iniciar.");
+
 calificacion(inicio);
