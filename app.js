@@ -1,78 +1,213 @@
 class Alumno {
-    constructor(nombre, nota1, nota2, nota3,){
+    constructor(nombre, notas = []) {
         this.nombre = nombre;
-        this.nota1 = nota1;
-        this.nota2 = nota2;
-        this.nota3 = nota3;
-        this.total = this.calcularTotal();
+        this.notas = notas;
     }
 
-    calcularTotal(){
-        return this.nota1 + this.nota2 + this.nota3;
+    calcularTotal() {
+        return this.notas.reduce((total, nota) => total + nota, 0);
     }
 
-    calcularPromedio(cantidadNotas){
-        return this.total / cantidadNotas;
+    calcularPromedio() {
+        if (this.notas.length === 0) return 0;
+        return this.calcularTotal() / this.notas.length;
     }
 
-    estaAprobado(cantidadNotas) {
-        let promedio = this.calcularPromedio(cantidadNotas);
-        if (promedio >= 7) {
-            return "Aprobado";
+    estaAprobado() {
+        return this.calcularPromedio() >= 7 ? "Aprobado" : "Desaprobado";
+    }
+}
+
+let alumnos = [];
+
+const Fetch = async () => {
+    try {
+        const response = await fetch("alumnos.json");
+        const data = await response.json();
+
+        alumnos = data.map(a => new Alumno(a.nombre, a.notas));
+        localStorage.setItem("alumnos", JSON.stringify(alumnos));
+        cargarDOM();
+    } catch (error) {
+        console.error("Error al cargar alumnos:", error);
+    }
+};
+
+
+const cargarLocalStorage = () => {
+    const data = JSON.parse(localStorage.getItem("alumnos"));
+    if (data && data.length > 0) {
+        alumnos = data.map(a => new Alumno(a.nombre, a.notas));
+        cargarDOM();
+    } else {
+        Fetch();
+    }
+};
+
+const cargarDOM = () => {
+    const contenedorAlumnos = document.getElementById("contenedorAlumnos");
+    contenedorAlumnos.innerHTML = "";
+
+    alumnos.forEach((alumno, index) => {
+
+        let textoNotas;
+        if (alumno.notas.length > 0) {
+            textoNotas = alumno.notas.join(" / ");
         } else {
-            return "Desaprobado";
+            textoNotas = "Sin notas";
         }
+
+        let estado = alumno.estaAprobado();
+        let claseBadge;
+
+        if (estado === "Aprobado") {
+            claseBadge = "bg-success";
+        } else {
+            claseBadge = "bg-danger";
+        }
+
+        const div = document.createElement("div");
+        div.classList.add("col-md-4", "mb-4");
+
+        div.innerHTML = `
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">${alumno.nombre}</h5>
+
+                    <p class="card-text">
+                        <strong>Notas:</strong> ${textoNotas}
+                    </p>
+
+                    <p class="card-text">
+                        <strong>Promedio:</strong>
+                        ${alumno.calcularPromedio().toFixed(2)}
+                    </p>
+
+                    <span class="badge ${claseBadge}">
+                        ${estado}
+                    </span>
+                </div>
+
+                <div class="card-footer text-center">
+
+                    <button class="btn btn-warning btn-sm btnModificar" data-index="${index}">
+                        Modificar
+                    </button>
+
+                    <button class="btn btn-danger btn-sm btnBorrarAlumno" data-index="${index}">
+                        Borrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        contenedorAlumnos.appendChild(div);
+    });
+};
+
+document.querySelector("#btnCargar").addEventListener("click", async () => {
+
+    const { value: nombre } = await Swal.fire({
+        title: "Nombre del alumno",
+        input: "text",
+        inputPlaceholder: "Ingrese el nombre",
+        showCancelButton: true
+    });
+
+    if (!nombre) return;
+
+    const { value: notasTexto } = await Swal.fire({
+        title: "Notas",
+        input: "text",
+        inputPlaceholder: "Ej: 7, 8, 6",
+        showCancelButton: true
+    });
+
+    if (!notasTexto) return;
+
+    const notas = notasTexto
+        .split(",")
+        .map(n => parseInt(n.trim()))
+        .filter(n => !isNaN(n));
+
+    alumnos.push(new Alumno(nombre.trim(), notas));
+    localStorage.setItem("alumnos", JSON.stringify(alumnos));
+    cargarDOM();
+
+    Swal.fire("Alumno creado correctamente", "", "success");
+});
+
+document.querySelector("#btnBorrar").addEventListener("click", () => {
+    
+    Swal.fire({
+            title: "¿Estás seguro que quieres borrar todos los datos?",
+            text: "Esta acción no se puede deshacer",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, borrar",
+            cancelButtonText: "Cancelar"
+        }).then((result) => {
+            if(result.isConfirmed){
+                localStorage.removeItem("alumnos");
+                alumnos = [];
+                cargarDOM();
+            };
+        })
+});
+
+
+document.addEventListener("click", async (e) => {
+    const index = Number(e.target.dataset.index);
+    const alumno = alumnos[index];
+
+    if (e.target.classList.contains("btnModificar")) {
+
+        const { value: nuevoNombre } = await Swal.fire({
+            title: "Modificar nombre",
+            input: "text",
+            inputValue: alumno.nombre,
+            showCancelButton: true
+        });
+
+    if (!nuevoNombre) return;
+
+        const { value: nuevasNotasTexto } = await Swal.fire({
+            title: "Modificar notas",
+            input: "text",
+            inputValue: alumno.notas.join(", "),
+            showCancelButton: true
+        });
+
+    if (!nuevasNotasTexto) return;
+
+        alumno.nombre = nuevoNombre.trim();
+        alumno.notas = nuevasNotasTexto
+            .split(",")
+            .map(n => parseInt(n.trim()))
+            .filter(n => !isNaN(n));
+
+        localStorage.setItem("alumnos", JSON.stringify(alumnos));
+        cargarDOM();
+
+        Swal.fire("Datos modificados", "", "success");
     }
-}
 
-
-let alumnos = []
-
-let continuar = true
-
-while(continuar){
-    let seleccion = prompt('Elija que desea realizar \n1 - Crear alumno \n2 - Mostrar alumnos ingresados\n3 - Calcular promedio del alumno\n4 - Salir')
-
-    switch(seleccion) {
-        case '1':
-            let nombre = prompt ("Ingrese el nombre del alumno");
-            let nota1 = parseInt(prompt ("Ingrese la primera nota del alumno"));
-            let nota2 = parseInt(prompt ("Ingrese la segunda nota del alumno"));
-            let nota3 = parseInt(prompt ("Ingrese la tercera nota del alumno"));
-            alumnos.push(new Alumno (nombre, nota1, nota2, nota3,));
-            localStorage.setItem("alumnos", JSON.stringify(alumnos));
-            console.table(JSON.parse(localStorage.getItem("alumnos")));
-            alert("Alumno creado correctamente");
-            break;
-        case '2':
-            if (alumnos.length === 0) {
-                alert("No hay alumnos cargados");
-            } else {
-                let mensaje = alumnos.map((alumno, index) =>"ID: " + (index + 1) + "\n" + "Nombre: " + alumno.nombre + "\n" + "---------------------").join("\n");
-                alert(mensaje);
+    if (e.target.classList.contains("btnBorrarAlumno")) {
+        Swal.fire({
+            title: `¿Estás seguro de borrar a ${alumno.nombre}?`,
+            text: "Esta acción no se puede deshacer",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, borrar",
+            cancelButtonText: "Cancelar"
+        }).then((result) => {
+            if (result.isConfirmed) {
+                alumnos.splice(index, 1);
+                localStorage.setItem("alumnos", JSON.stringify(alumnos));
+                cargarDOM();
             }
-            break;
-        case '3':
-            case '3':
-                let buscarAlumno = parseInt(prompt('Ingrese el ID'));
-                let cantidadNotas = parseInt(prompt('Ingrese la cantidad de notas del alumno'));
-                let alumno = alumnos.find((alumno, index) => index === buscarAlumno - 1);
-                if (alumno) {
-                alert("Alumno: " + alumno.nombre +"\nPromedio: " + alumno.calcularPromedio(cantidadNotas).toFixed(2) +"\nEstado: " + alumno.estaAprobado(cantidadNotas));
-                } else {
-                alert("Alumno no encontrado");
-                }
-                break;
-        case '4':
-            alert("Gracias por utilizar el sistema, adios.");
-            continuar = false
-
-            break;
-        
-        default:
-            alert("Usted seleccionó una opción inválida.");
-
-            break;
-
+        });
     }
-}
+});
+
+cargarLocalStorage();
